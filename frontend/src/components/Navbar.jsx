@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/AppContext";
 import { 
   Bell, 
@@ -9,6 +9,7 @@ import {
   AlertTriangle
 } from "lucide-react";
 import VoiceAssistant from "./VoiceAssistant";
+import firestore from "../firebase/firestore";
 
 export const Navbar = () => {
   const { 
@@ -19,11 +20,28 @@ export const Navbar = () => {
     alerts, 
     language, 
     setLanguage, 
+    setActiveTab,
     t 
   } = useApp();
 
   const [showVoice, setShowVoice] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [timeStr, setTimeStr] = useState(new Date().toLocaleTimeString());
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    };
+    if (showNotifications) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showNotifications]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -33,10 +51,10 @@ export const Navbar = () => {
   }, []);
 
   // Determine current active center and calculate health score
-  const isDistrictScoped = currentUser?.role === "Admin" || currentUser?.role === "District Officer";
-  const activeCenterId = isDistrictScoped ? "phc-a" : currentUser?.centerId; // Admin looks at phc-a as main default
+  const isDistrictScoped = true;
+  const activeCenterId = isDistrictScoped ? (centers[0]?.id || "") : (currentUser?.centerId || centers[0]?.id || "");
   const activeCenter = centers.find(c => c.id === activeCenterId);
-  const healthScore = activeCenter ? activeCenter.healthScore : 87;
+  const healthScore = activeCenter ? activeCenter.healthScore : 100;
 
   // Active unhandled critical alerts
   const unhandledAlerts = alerts.filter(a => !a.resolved);
@@ -52,10 +70,7 @@ export const Navbar = () => {
       <div className="flex items-center space-x-4">
         <div>
           <h2 className="text-base font-bold text-slate-800 uppercase tracking-wide">
-            {isDistrictScoped 
-              ? `District HQ - ${currentUser?.district || "Anantapur"} Command` 
-              : activeCenter?.centerName || "Health Center Node"
-            }
+            {activeCenter?.centerName || "Health Center Node"}
           </h2>
           <p className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase">
             Government Intelligence Dashboard
@@ -109,16 +124,71 @@ export const Navbar = () => {
         </div>
 
         {/* Notifications Icon with Badge */}
-        <div className="relative group cursor-pointer" title={`${unhandledAlerts.length} Active Alerts`}>
-          <div className="p-2 text-slate-500 bg-slate-50 rounded-lg border border-slate-100 hover:text-slate-700 hover:bg-slate-100 transition-colors">
+        <div className="relative" ref={dropdownRef}>
+          <button
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="p-2 text-slate-500 bg-slate-50 rounded-lg border border-slate-100 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer relative"
+            title={`${unhandledAlerts.length} Active Alerts`}
+          >
             <Bell className="w-4 h-4" />
-          </div>
-          {unhandledAlerts.length > 0 && (
-            <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full text-[9px] font-bold text-white flex items-center justify-center ${
-              criticalCount > 0 ? "bg-red-500 animate-pulse" : "bg-amber-500"
-            }`}>
-              {unhandledAlerts.length}
-            </span>
+            {unhandledAlerts.length > 0 && (
+              <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full text-[9px] font-bold text-white flex items-center justify-center ${
+                criticalCount > 0 ? "bg-red-500 animate-pulse" : "bg-amber-500"
+              }`}>
+                {unhandledAlerts.length}
+              </span>
+            )}
+          </button>
+
+          {showNotifications && (
+            <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl border border-slate-200 shadow-xl z-30 p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Active Alerts</h3>
+                <button
+                  onClick={() => {
+                    setActiveTab("alerts");
+                    setShowNotifications(false);
+                  }}
+                  className="text-3xs text-teal-600 hover:text-teal-700 font-extrabold uppercase cursor-pointer"
+                >
+                  View All
+                </button>
+              </div>
+
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {unhandledAlerts.length === 0 ? (
+                  <p className="text-3xs text-slate-400 italic text-center py-6">All alert status cleared. No critical messages.</p>
+                ) : (
+                  unhandledAlerts.map(a => (
+                    <div key={a.id} className="p-2.5 rounded-xl border border-slate-100 bg-slate-50/50 flex flex-col justify-between space-y-2 hover:bg-slate-50 transition-colors">
+                      <div className="flex items-start space-x-2">
+                        <span className={`w-1.5 h-1.5 rounded-full mt-1 shrink-0 ${
+                          a.severity === "danger" ? "bg-red-500" : "bg-amber-500"
+                        }`} />
+                        <div>
+                          <h4 className="text-2xs font-extrabold text-slate-700">{a.title}</h4>
+                          <p className="text-3xs text-slate-500 leading-normal mt-0.5">{a.message}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[8px] text-slate-400 font-mono">
+                          {new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            await firestore.updateDoc("alerts", a.id, { resolved: true });
+                          }}
+                          className="text-[9px] text-emerald-600 hover:text-emerald-700 font-bold uppercase tracking-wider cursor-pointer"
+                        >
+                          Resolve
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           )}
         </div>
       </div>

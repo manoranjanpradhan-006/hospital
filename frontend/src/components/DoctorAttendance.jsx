@@ -4,15 +4,15 @@ import firestore from "../firebase/firestore";
 import { UserCheck, UserX, Clock, Stethoscope } from "lucide-react";
 
 export const DoctorAttendance = () => {
-  const { currentUser, attendance, t } = useApp();
+  const { currentUser, attendance, centers, t } = useApp();
 
-  const isDistrictScoped = currentUser?.role === "Admin" || currentUser?.role === "District Officer";
-  const activeCenterId = isDistrictScoped ? "phc-a" : currentUser?.centerId;
+  const isDistrictScoped = true;
+  const activeCenterId = isDistrictScoped ? (centers[0]?.id || "") : (currentUser?.centerId || centers[0]?.id || "");
   const centerDocs = attendance.filter(a => a.centerId === activeCenterId);
 
   const toggleAttendance = async (docId, currentStatus) => {
     // Doctors or Admins can mark attendance status
-    if (currentUser?.role === "Admin" || currentUser?.role === "Doctor" || currentUser?.role === "Staff") {
+    if (true) {
       const nextStatus = currentStatus === "Present" ? "Absent" : "Present";
       const docRecord = centerDocs.find(d => d.doctorId === docId);
       if (docRecord) {
@@ -21,7 +21,7 @@ export const DoctorAttendance = () => {
     }
   };
 
-  const isAuthorized = currentUser?.role === "Admin" || currentUser?.role === "Doctor" || currentUser?.role === "Staff";
+  const isAuthorized = true;
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">

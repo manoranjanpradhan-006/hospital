@@ -10,19 +10,40 @@ import {
   Plus, 
   Minus,
   Edit2,
-  Check
+  Check,
+  Building
 } from "lucide-react";
 
 export const DashboardCards = () => {
-  const { currentUser, stock, centers, attendance, t } = useApp();
+  const { currentUser, stock, stockTransactions, centers, attendance, t } = useApp();
 
   // Filter metrics based on scope
-  const isDistrictScoped = currentUser?.role === "Admin" || currentUser?.role === "District Officer";
-  const activeCenterId = isDistrictScoped ? "phc-a" : currentUser?.centerId;
+  const isDistrictScoped = true;
+  const activeCenterId = isDistrictScoped ? (centers[0]?.id || "") : (currentUser?.centerId || centers[0]?.id || "");
 
-  const currentCenter = centers.find(c => c.id === activeCenterId) || centers[0];
-  const centerStocks = stock.filter(s => s.centerId === activeCenterId);
-  const centerDocs = attendance.filter(a => a.centerId === activeCenterId);
+  // Local state for branch filtering on dashboard
+  const [selectedCenterId, setSelectedCenterId] = useState("");
+
+  React.useEffect(() => {
+    if (activeCenterId && !selectedCenterId) {
+      setSelectedCenterId(activeCenterId);
+    }
+  }, [activeCenterId, selectedCenterId]);
+
+  const defaultCenterPlaceholder = { 
+    id: "none", 
+    centerName: "No Hospital Center Registered", 
+    type: "PHC", 
+    district: "N/A", 
+    capacity: 0, 
+    bedsAvailable: 0, 
+    bedsOccupied: 0, 
+    healthScore: 0 
+  };
+
+  const currentCenter = centers.find(c => c.id === selectedCenterId) || centers[0] || defaultCenterPlaceholder;
+  const centerStocks = stock.filter(s => s.centerId === selectedCenterId);
+  const centerDocs = attendance.filter(a => a.centerId === selectedCenterId);
 
   // States for stock editing (Pharmacist / Staff authorization)
   const [editingStockId, setEditingStockId] = useState(null);
@@ -44,9 +65,14 @@ export const DashboardCards = () => {
   const getMedPercentage = (qty) => Math.min(100, Math.round((qty / 1000) * 100));
   const getMedColor = (pct) => {
     if (pct <= 20) return { bg: "bg-red-500", text: "text-red-500", light: "bg-red-50 border-red-100", label: "Low" };
-    if (pct <= 50) return { bg: "bg-amber-500", text: "text-amber-500", light: "bg-amber-50 border-amber-100", label: "Medium" };
+    if (pct <= 50) return { bg: "bg-amber-500", text: "text-amber-550", light: "bg-amber-50 border-amber-100", label: "Medium" };
     return { bg: "bg-emerald-500", text: "text-emerald-500", light: "bg-emerald-50 border-emerald-100", label: "High" };
   };
+
+  // Aggregates for widgets
+  const totalMedTypes = new Set(centerStocks.map(s => s.medicineName.toLowerCase())).size;
+  const lowStockCount = centerStocks.filter(s => s.quantity <= s.threshold).length;
+  const recentSupplies = stockTransactions.filter(t => t.hospital_id === selectedCenterId);
 
   // Lab Tests Status (CBC, Blood Sugar, Malaria, X-Ray)
   const [labTests, setLabTests] = useState([
@@ -65,78 +91,128 @@ export const DashboardCards = () => {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      
-      {/* 1. Medicine Stock Card */}
-      <div id="medicine-stock-card" className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-2">
-              <div className="p-2 bg-teal-50 text-teal-600 rounded-xl border border-teal-100">
-                <Pill className="w-5 h-5" />
+    <div className="space-y-6">
+      {/* Branch/Hospital filter dropdown for multi-hospital systems */}
+      {isDistrictScoped && (
+        <div className="flex items-center space-x-2 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm w-fit">
+          <Building className="w-4 h-4 text-teal-650" />
+          <span className="text-2xs font-extrabold text-slate-400 uppercase tracking-wide">Filter Branch:</span>
+          <select
+            value={selectedCenterId}
+            onChange={(e) => setSelectedCenterId(e.target.value)}
+            className="bg-transparent text-xs font-bold text-slate-700 focus:outline-none cursor-pointer"
+          >
+            {centers.map(c => (
+              <option key={c.id} value={c.id}>{c.centerName}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        
+        {/* 1. Medicine Stock Card */}
+        <div id="medicine-stock-card" className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-2">
+                <div className="p-2 bg-teal-50 text-teal-600 rounded-xl border border-teal-100">
+                  <Pill className="w-5 h-5" />
+                </div>
+                <h3 className="font-bold text-slate-800 text-sm tracking-wide">{t("medicineStock")}</h3>
               </div>
-              <h3 className="font-bold text-slate-800 text-sm tracking-wide">{t("medicineStock")}</h3>
+              {canEditStock && (
+                <span className="text-[10px] text-teal-600 bg-teal-50 font-bold px-2 py-0.5 rounded-full border border-teal-100">
+                  Auth: Write
+                </span>
+              )}
             </div>
-            {canEditStock && (
-              <span className="text-[10px] text-teal-600 bg-teal-50 font-bold px-2 py-0.5 rounded-full border border-teal-100">
-                Auth: Write
-              </span>
-            )}
-          </div>
 
-          <div className="space-y-4">
-            {centerStocks.map(item => {
-              const pct = getMedPercentage(item.quantity);
-              const colorInfo = getMedColor(pct);
-              const isEditing = editingStockId === item.id;
+            {/* Widget stats: Total medicines and Low Stock */}
+            <div className="grid grid-cols-2 gap-3 mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+              <div className="text-center border-r border-slate-200">
+                <p className="text-[9px] text-slate-455 font-extrabold uppercase">Total Types</p>
+                <p className="text-base font-extrabold text-slate-750">{totalMedTypes}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[9px] text-slate-455 font-extrabold uppercase">Low Stock</p>
+                <p className={`text-base font-extrabold ${lowStockCount > 0 ? "text-red-500 animate-pulse font-black" : "text-slate-750"}`}>{lowStockCount}</p>
+              </div>
+            </div>
 
-              return (
-                <div key={item.id} className="border-b border-slate-50 pb-3 last:border-0 last:pb-0">
-                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700 mb-1.5">
-                    <span>{item.medicineName === "Paracetamol" ? t("paracetamol") : item.medicineName === "Ibuprofen" ? t("ibuprofen") : t("ors")}</span>
-                    <div className="flex items-center space-x-2">
-                      {isEditing ? (
-                        <div className="flex items-center space-x-1">
-                          <input 
-                            type="number" 
-                            value={editVal} 
-                            onChange={(e) => setEditVal(e.target.value)}
-                            className="w-16 border border-slate-300 rounded px-1 text-center font-bold text-slate-800"
-                          />
-                          <button onClick={() => handleSaveStock(item.id)} className="p-1 bg-emerald-500 text-white rounded hover:bg-emerald-600">
-                            <Check className="w-3.5 h-3.5" />
+            <div className="space-y-4">
+              {centerStocks.map(item => {
+                const isLow = item.quantity <= item.threshold;
+                const pct = getMedPercentage(item.quantity);
+                const colorInfo = isLow 
+                  ? { bg: "bg-red-550", text: "text-red-500", light: "bg-red-50 border-red-100", label: "Low Stock Warn" } 
+                  : getMedColor(pct);
+                const isEditing = editingStockId === item.id;
+
+                return (
+                  <div key={item.id} className="border-b border-slate-50 pb-3 last:border-0 last:pb-0">
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-700 mb-1.5">
+                      <span>{item.medicineName === "Paracetamol" ? t("paracetamol") : item.medicineName === "Ibuprofen" ? t("ibuprofen") : item.medicineName === "ORS" ? t("ors") : item.medicineName}</span>
+                      <div className="flex items-center space-x-2">
+                        {isEditing ? (
+                          <div className="flex items-center space-x-1">
+                            <input 
+                              type="number" 
+                              value={editVal} 
+                              onChange={(e) => setEditVal(e.target.value)}
+                              className="w-16 border border-slate-300 rounded px-1 text-center font-bold text-slate-800"
+                            />
+                            <button onClick={() => handleSaveStock(item.id)} className="p-1 bg-emerald-500 text-white rounded hover:bg-emerald-600">
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className={`${colorInfo.text} font-extrabold`}>{item.quantity} Units ({pct}%)</span>
+                        )}
+                        
+                        {canEditStock && !isEditing && (
+                          <button onClick={() => startEdit(item)} className="p-0.5 text-slate-400 hover:text-teal-600">
+                            <Edit2 className="w-3.5 h-3.5" />
                           </button>
-                        </div>
-                      ) : (
-                        <span className={`${colorInfo.text} font-bold`}>{item.quantity} Units ({pct}%)</span>
-                      )}
-                      
-                      {canEditStock && !isEditing && (
-                        <button onClick={() => startEdit(item)} className="p-0.5 text-slate-400 hover:text-teal-600">
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="w-full bg-slate-100 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full transition-all duration-500 ${colorInfo.bg}`}
+                        style={{ width: `${pct}%` }}
+                      ></div>
+                    </div>
+                    <div className="flex justify-between items-center mt-1">
+                      <span className="text-[10px] text-slate-400 font-semibold uppercase">Capacity: 1000</span>
+                      <span className={`text-[10px] font-bold uppercase px-1.5 py-0.2 rounded border ${colorInfo.light} ${colorInfo.text}`}>
+                        {colorInfo.label}
+                      </span>
                     </div>
                   </div>
+                );
+              })}
+            </div>
 
-                  <div className="w-full bg-slate-100 rounded-full h-2">
-                    <div 
-                      className={`h-2 rounded-full transition-all duration-500 ${colorInfo.bg}`}
-                      style={{ width: `${pct}%` }}
-                    ></div>
-                  </div>
-                  <div className="flex justify-between items-center mt-1">
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase">Capacity: 1000</span>
-                    <span className={`text-[10px] font-bold uppercase px-1.5 py-0.2 rounded border ${colorInfo.light} ${colorInfo.text}`}>
-                      {colorInfo.label}
-                    </span>
-                  </div>
+            {/* Recently Added Stock Sub-widget */}
+            <div className="mt-5 pt-4 border-t border-slate-100">
+              <p className="text-[10px] text-slate-450 font-extrabold uppercase tracking-wider mb-2">Recently Added Stock</p>
+              {recentSupplies.length === 0 ? (
+                <p className="text-[10px] text-slate-400 italic">No recent supply transactions for this branch.</p>
+              ) : (
+                <div className="space-y-2">
+                  {recentSupplies.slice(0, 3).map(tx => (
+                    <div key={tx.id} className="flex justify-between items-center text-[10px] text-slate-500 font-medium border-b border-slate-50 pb-1 last:border-0 last:pb-0">
+                      <span className="truncate max-w-[120px]">{tx.name} ({tx.supplier_name})</span>
+                      <span className="text-teal-700 font-bold shrink-0">+{tx.quantity_added} Units</span>
+                    </div>
+                  ))}
                 </div>
-              );
-            })}
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
       {/* 2. Patient Footfall Card */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
@@ -315,6 +391,7 @@ export const DashboardCards = () => {
         </div>
       </div>
 
+    </div>
     </div>
   );
 };

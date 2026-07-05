@@ -4,26 +4,48 @@ import { Map, Trophy, Compass, ArrowUpRight, BedDouble, Pill, Users } from "luci
 
 export const Centers = () => {
   const { centers, stock, attendance, t } = useApp();
-  const [selectedCenterId, setSelectedCenterId] = useState("phc-a");
+  const [selectedCenterId, setSelectedCenterId] = useState("");
+  const activeCenterId = selectedCenterId || centers[0]?.id || "";
 
   // Sorted rankings list (Trophy list)
   const rankedCenters = [...centers].sort((a, b) => b.healthScore - a.healthScore);
 
-  const selectedCenter = centers.find(c => c.id === selectedCenterId) || centers[0];
-  const centerStocks = stock.filter(s => s.centerId === selectedCenterId);
-  const centerDocs = attendance.filter(a => a.centerId === selectedCenterId);
+  const defaultCenterPlaceholder = { 
+    id: "none", 
+    centerName: "No Hospital Center Registered", 
+    type: "PHC", 
+    district: "N/A", 
+    capacity: 0, 
+    bedsAvailable: 0, 
+    bedsOccupied: 0, 
+    healthScore: 0 
+  };
+
+  const selectedCenter = centers.find(c => c.id === activeCenterId) || centers[0] || defaultCenterPlaceholder;
+  const centerStocks = stock.filter(s => s.centerId === selectedCenter.id);
+  const centerDocs = attendance.filter(a => a.centerId === selectedCenter.id);
 
   // SVG dimensions for map
   const mapWidth = 450;
   const mapHeight = 300;
 
-  // Center coordinate mapping on the custom map
-  const coordinates = {
-    "phc-a": { x: 220, y: 150 }, // Anantapur (Center)
-    "phc-b": { x: 280, y: 190 }, // Dharmavaram
-    "chc-c": { x: 190, y: 70 },  // Gooty
-    "phc-d": { x: 150, y: 250 }, // Hindupur
-    "chc-e": { x: 380, y: 220 }  // Kadiri
+  // Dynamically scale Latitude & Longitude to map layout dimensions
+  const getProjectedCoords = (center) => {
+    const latMin = 13.5;
+    const latMax = 15.5;
+    const lngMin = 76.5;
+    const lngMax = 78.5;
+
+    const lat = center.latitude || 14.5;
+    const lng = center.longitude || 77.5;
+
+    const x = 50 + ((lng - lngMin) / (lngMax - lngMin)) * (mapWidth - 100);
+    const y = 50 + (1 - (lat - latMin) / (latMax - latMin)) * (mapHeight - 100);
+
+    return { 
+      x: Math.max(20, Math.min(mapWidth - 20, x)), 
+      y: Math.max(20, Math.min(mapHeight - 20, y)) 
+    };
   };
 
   const getPinColor = (score) => {
@@ -86,9 +108,9 @@ export const Centers = () => {
 
                 {/* Pulse coordinate pins */}
                 {centers.map(center => {
-                  const coord = coordinates[center.id] || { x: 220, y: 150 };
+                  const coord = getProjectedCoords(center);
                   const color = getPinColor(center.healthScore);
-                  const isSelected = selectedCenterId === center.id;
+                  const isSelected = activeCenterId === center.id;
 
                   return (
                     <g 

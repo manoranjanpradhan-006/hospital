@@ -1,31 +1,64 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import auth from "../firebase/auth";
+import firestore from "../firebase/firestore";
 import Loader from "../components/Loader";
 import { HeartPulse, Mail, Lock, User, MapPin, Briefcase } from "lucide-react";
 
-export const Signup = () => {
+export const Signup = ({ onToggle }) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("Staff");
-  const [district, setDistrict] = useState("Anantapur");
-  const [centerId, setCenterId] = useState("phc-a");
+  const [role, setRole] = useState("");
+  const [district, setDistrict] = useState("");
+  const [centerId, setCenterId] = useState("");
+  const [centersList, setCentersList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Fetch centers list dynamically on component mount
+  useEffect(() => {
+    const loadCenters = async () => {
+      try {
+        const data = await firestore.getDocs("centers");
+        setCentersList(data);
+      } catch (err) {
+        console.error("Failed to load centers for signup dropdown", err);
+      }
+    };
+    loadCenters();
+  }, []);
 
   const handleSignup = async (e) => {
     e.preventDefault();
     setErrorMsg("");
+
+    if (!district.trim()) {
+      setErrorMsg("Please specify your District / Region.");
+      return;
+    }
+
+    if (!role) {
+      setErrorMsg("Please select a Professional Role.");
+      return;
+    }
+    
+    // Admins and District Officers scope district-wide ("all")
+    const isDistrictScope = role === "Admin" || role === "District Officer";
+    if (!isDistrictScope && !centerId) {
+      setErrorMsg("Please select your Assigned Center.");
+      return;
+    }
+
     setLoading(true);
     try {
       await auth.createUserWithEmailAndPassword(email, password, {
-        name,
+        name: name.trim(),
         role,
-        district,
-        centerId
+        district: district.trim(),
+        centerId: isDistrictScope ? "all" : centerId
       });
-    } catch (e) {
-      setErrorMsg(e.message);
+    } catch (err) {
+      setErrorMsg(err.message);
     } finally {
       setLoading(false);
     }
@@ -114,6 +147,25 @@ export const Signup = () => {
               </div>
             </div>
 
+            <div>
+              <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">
+                District / Region
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+                  <MapPin className="w-4 h-4" />
+                </span>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Anantapur"
+                  value={district}
+                  onChange={(e) => setDistrict(e.target.value)}
+                  className="w-full text-xs border border-slate-200 rounded-xl pl-10 pr-4 py-2 bg-slate-50 focus:outline-none focus:border-teal-500 font-medium"
+                />
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">
@@ -125,9 +177,11 @@ export const Signup = () => {
                   </span>
                   <select
                     value={role}
+                    required
                     onChange={(e) => setRole(e.target.value)}
                     className="w-full text-xs border border-slate-200 rounded-xl pl-10 pr-4 py-2 bg-slate-50 focus:outline-none focus:border-teal-500 font-bold text-slate-700"
                   >
+                    <option value="">-- Choose Role --</option>
                     <option value="Admin">Admin</option>
                     <option value="District Officer">District Officer</option>
                     <option value="Staff">Staff</option>
@@ -148,14 +202,19 @@ export const Signup = () => {
                   </span>
                   <select
                     value={centerId}
+                    disabled={role === "Admin" || role === "District Officer"}
                     onChange={(e) => setCenterId(e.target.value)}
-                    className="w-full text-xs border border-slate-200 rounded-xl pl-10 pr-4 py-2 bg-slate-50 focus:outline-none focus:border-teal-500 font-bold text-slate-700"
+                    className="w-full text-xs border border-slate-200 rounded-xl pl-10 pr-4 py-2 bg-slate-50 focus:outline-none focus:border-teal-500 font-bold text-slate-700 disabled:opacity-60"
                   >
-                    <option value="phc-a">Anantapur PHC</option>
-                    <option value="phc-b">Dharmavaram PHC</option>
-                    <option value="chc-c">Gooty CHC</option>
-                    <option value="phc-d">Hindupur PHC</option>
-                    <option value="chc-e">Kadiri CHC</option>
+                    <option value="">
+                      {role === "Admin" || role === "District Officer" 
+                        ? "-- District Wide (All) --" 
+                        : "-- Choose Center --"
+                      }
+                    </option>
+                    {centersList.map(c => (
+                      <option key={c.id} value={c.id}>{c.centerName}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -168,6 +227,20 @@ export const Signup = () => {
               Request Account Deployment
             </button>
           </form>
+
+          {/* Toggle link */}
+          <div className="mt-4 text-center">
+            <p className="text-2xs text-slate-400 font-semibold">
+              Already have an account?{" "}
+              <button
+                type="button"
+                onClick={onToggle}
+                className="text-teal-700 hover:text-teal-800 font-extrabold uppercase hover:underline ml-1 cursor-pointer bg-transparent border-none"
+              >
+                Sign In
+              </button>
+            </p>
+          </div>
 
         </div>
       </div>

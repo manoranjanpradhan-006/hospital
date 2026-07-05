@@ -9,11 +9,12 @@ import {
   Settings, 
   ShieldCheck, 
   LogOut,
-  HeartPulse
+  HeartPulse,
+  Pill
 } from "lucide-react";
 
 export const Sidebar = () => {
-  const { currentUser, activeTab, setActiveTab, alerts, t } = useApp();
+  const { currentUser, activeTab, setActiveTab, alerts, centers, t } = useApp();
 
   const handleLogout = async () => {
     if (confirm("Are you sure you want to sign out of the Health Sync platform?")) {
@@ -22,12 +23,13 @@ export const Sidebar = () => {
   };
 
   // Determine tabs based on role
-  const isDistrictScoped = currentUser?.role === "Admin" || currentUser?.role === "District Officer";
+  const isDistrictScoped = true;
   
   const menuItems = [
     { id: "dashboard", label: t("dashboard"), icon: LayoutDashboard },
     ...(isDistrictScoped ? [{ id: "admin", label: t("adminPanel"), icon: ShieldCheck }] : []),
     ...(isDistrictScoped ? [{ id: "centers", label: t("centers"), icon: Map }] : []),
+    { id: "stock-management", label: t("stockManagement"), icon: Pill },
     { id: "alerts", label: t("alerts"), icon: ShieldAlert, badge: alerts.filter(a => !a.resolved).length },
     { id: "reports", label: t("reports"), icon: FileBarChart },
     { id: "settings", label: t("settings"), icon: Settings },
@@ -95,7 +97,7 @@ export const Sidebar = () => {
             </div>
             {currentUser.centerId && currentUser.centerId !== "all" && (
               <p className="text-[10px] text-slate-500 mt-0.5 uppercase truncate">
-                PHC Anantapur
+                {centers.find(c => c.id === currentUser.centerId)?.centerName || "Health Center"}
               </p>
             )}
           </div>

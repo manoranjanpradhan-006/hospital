@@ -3,6 +3,7 @@ import { useApp } from "../context/AppContext";
 import firestore from "../firebase/firestore";
 import DashboardCards from "../components/DashboardCards";
 import MedicineChart from "../components/MedicineChart";
+import StockTrendsChart from "../components/StockTrendsChart";
 import BedChart from "../components/BedChart";
 import FootfallChart from "../components/FootfallChart";
 import DoctorAttendance from "../components/DoctorAttendance";
@@ -34,6 +35,9 @@ export const Dashboard = () => {
 
   const [loadingPrediction, setLoadingPrediction] = useState(false);
   const [predictions, setPredictions] = useState(null);
+  
+  // Tab selector for medicine charts (consumption | trends)
+  const [medChartTab, setMedChartTab] = useState("consumption");
   
   // States for executed transfers to show immediate UI response
   const [executingId, setExecutingId] = useState(null);
@@ -161,7 +165,28 @@ export const Dashboard = () => {
 
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <MedicineChart />
+        <div className="relative">
+          {/* Switch tab buttons aligned with headers */}
+          <div className="absolute right-36 top-5 z-10 flex items-center space-x-1 bg-slate-105 p-0.5 rounded-lg border border-slate-200">
+            <button
+              onClick={() => setMedChartTab("consumption")}
+              className={`px-2 py-0.5 rounded text-[9px] font-extrabold uppercase transition-all cursor-pointer ${
+                medChartTab === "consumption" ? "bg-white text-slate-800 shadow-sm" : "text-slate-400 hover:text-slate-700"
+              }`}
+            >
+              Consumption
+            </button>
+            <button
+              onClick={() => setMedChartTab("trends")}
+              className={`px-2 py-0.5 rounded text-[9px] font-extrabold uppercase transition-all cursor-pointer ${
+                medChartTab === "trends" ? "bg-white text-slate-800 shadow-sm" : "text-slate-400 hover:text-slate-700"
+              }`}
+            >
+              Stock Trends
+            </button>
+          </div>
+          {medChartTab === "consumption" ? <MedicineChart /> : <StockTrendsChart />}
+        </div>
         <FootfallChart />
         <BedChart />
         <DoctorAttendance />

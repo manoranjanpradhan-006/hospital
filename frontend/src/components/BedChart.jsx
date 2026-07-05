@@ -12,13 +12,23 @@ import {
 export const BedChart = () => {
   const { currentUser, centers, t } = useApp();
 
-  const isDistrictScoped = currentUser?.role === "Admin" || currentUser?.role === "District Officer";
-  const activeCenterId = isDistrictScoped ? "phc-a" : currentUser?.centerId;
-  const currentCenter = centers.find(c => c.id === activeCenterId) || centers[0];
+  const isDistrictScoped = true;
+  const activeCenterId = isDistrictScoped ? (centers[0]?.id || "") : (currentUser?.centerId || centers[0]?.id || "");
+  const defaultCenterPlaceholder = { 
+    id: "none", 
+    centerName: "No Hospital Center Registered", 
+    type: "PHC", 
+    district: "N/A", 
+    capacity: 0, 
+    bedsAvailable: 0, 
+    bedsOccupied: 0, 
+    healthScore: 0 
+  };
+  const currentCenter = centers.find(c => c.id === activeCenterId) || centers[0] || defaultCenterPlaceholder;
 
   const data = [
-    { name: t("available"), value: currentCenter?.bedsAvailable || 45 },
-    { name: t("occupied"), value: currentCenter?.bedsOccupied || 55 }
+    { name: t("available"), value: currentCenter?.bedsAvailable || 0 },
+    { name: t("occupied"), value: currentCenter?.bedsOccupied || 0 }
   ];
 
   const COLORS = ["#22c55e", "#2563eb"];

@@ -13,18 +13,32 @@ import {
 } from "recharts";
 
 export const MedicineChart = () => {
-  const { t } = useApp();
+  const { consumptionLog, t } = useApp();
 
-  // Usage trends data for Paracetamol, Ibuprofen, ORS
-  const data = [
-    { name: "Mon", Paracetamol: 120, Ibuprofen: 45, ORS: 80 },
-    { name: "Tue", Paracetamol: 135, Ibuprofen: 50, ORS: 95 },
-    { name: "Wed", Paracetamol: 150, Ibuprofen: 38, ORS: 110 },
-    { name: "Thu", Paracetamol: 140, Ibuprofen: 48, ORS: 70 },
-    { name: "Fri", Paracetamol: 165, Ibuprofen: 55, ORS: 120 },
-    { name: "Sat", Paracetamol: 130, Ibuprofen: 40, ORS: 140 },
-    { name: "Sun", Paracetamol: 110, Ibuprofen: 34, ORS: 155 }
+  const dates = [
+    { key: "2026-06-29", label: "Mon" },
+    { key: "2026-06-30", label: "Tue" },
+    { key: "2026-07-01", label: "Wed" },
+    { key: "2026-07-02", label: "Thu" },
+    { key: "2026-07-03", label: "Fri" },
+    { key: "2026-07-04", label: "Sat" },
+    { key: "2026-07-05", label: "Sun" }
   ];
+
+  // Dynamically group and sum usage from consumptionLog
+  const data = dates.map(d => {
+    const dayLogs = consumptionLog.filter(c => c.date === d.key);
+    const paracetamol = dayLogs.filter(l => l.name === "Paracetamol").reduce((sum, l) => sum + l.quantity_deducted, 0);
+    const ibuprofen = dayLogs.filter(l => l.name === "Ibuprofen").reduce((sum, l) => sum + l.quantity_deducted, 0);
+    const ors = dayLogs.filter(l => l.name === "ORS").reduce((sum, l) => sum + l.quantity_deducted, 0);
+
+    return {
+      name: d.label,
+      Paracetamol: paracetamol,
+      Ibuprofen: ibuprofen,
+      ORS: ors
+    };
+  });
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">

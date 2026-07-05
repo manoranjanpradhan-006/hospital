@@ -4,7 +4,7 @@ import auth from "../firebase/auth";
 import Loader from "../components/Loader";
 import { HeartPulse, Lock, Mail, Sparkles } from "lucide-react";
 
-export const Login = () => {
+export const Login = ({ onToggle }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -166,6 +166,17 @@ export const Login = () => {
               </button>
             </div>
           </div>
+
+          <p className="text-2xs text-slate-400 font-semibold text-center mt-5">
+            Need a new command connection?{" "}
+            <button
+              type="button"
+              onClick={onToggle}
+              className="text-teal-700 hover:text-teal-800 font-extrabold uppercase hover:underline ml-1 cursor-pointer bg-transparent border-none"
+            >
+              Register Here
+            </button>
+          </p>
 
         </div>
       </div>

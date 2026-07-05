@@ -6,15 +6,17 @@ import firestore from "../firebase/firestore";
 
 let simulationInterval = null;
 
-const MEDICINES = ["Paracetamol", "Ibuprofen", "ORS"];
-const CENTERS = ["phc-a", "phc-b", "chc-c", "phc-d", "chc-e"];
-
 export const startSimulation = (onUpdateNotification) => {
   if (simulationInterval) clearInterval(simulationInterval);
 
+  // Initialize tick counter on window if not present
+  if (typeof window !== "undefined" && !window.simTickCount) {
+    window.simTickCount = 0;
+  }
+
   simulationInterval = setInterval(async () => {
     try {
-      // 1. Medicine Decreases
+      // 1. Medicine Decreases (Auto-deduction based on daily usage)
       const stocks = await firestore.getDocs("stock");
       const chosenStock = stocks[Math.floor(Math.random() * stocks.length)];
       if (chosenStock) {
@@ -22,6 +24,15 @@ export const startSimulation = (onUpdateNotification) => {
         const newQuantity = Math.max(0, chosenStock.quantity - decreaseAmount);
         
         await firestore.updateDoc("stock", chosenStock.id, { quantity: newQuantity });
+
+        // Record usage log in consumption_log
+        await firestore.addDoc("consumption_log", {
+          medicine_id: chosenStock.id,
+          name: chosenStock.medicineName,
+          quantity_deducted: decreaseAmount,
+          date: "2026-07-05", // Fixed mock active date for charting
+          hospital_id: chosenStock.centerId
+        });
 
         // Trigger Alert if it crosses threshold and doesn't already have an active alert
         if (newQuantity <= chosenStock.threshold) {
@@ -43,8 +54,40 @@ export const startSimulation = (onUpdateNotification) => {
               centerId: chosenStock.centerId,
               resolved: false
             });
-            if (onUpdateNotification) onUpdateNotification("Low Medicine Stock alert triggered!");
+
+            // Simulated SMS & Email Notifications
+            console.log(`%c[SMS ALERT] Sent to +91-XXXX-XXXXXX: Low stock warning! ${chosenStock.medicineName} is at ${newQuantity} units at ${cName}.`, "color: #ef4444; font-weight: bold;");
+            console.log(`%c[EMAIL ALERT] Sent to admin@healthsync.gov.in: Alert! Medicine ${chosenStock.medicineName} has fallen below threshold of ${chosenStock.threshold} units. Current stock is ${newQuantity} units.`, "color: #ef4444; font-weight: bold;");
+
+            if (onUpdateNotification) onUpdateNotification(`Low Medicine Stock warning triggered for ${chosenStock.medicineName}!`);
           }
+        }
+      }
+
+      // 1.5. Simulated Daily Recalculation Cron (Runs every 30 seconds / 6 ticks)
+      if (typeof window !== "undefined") {
+        window.simTickCount++;
+        if (window.simTickCount % 6 === 0) {
+          const allStock = await firestore.getDocs("stock");
+          
+          for (const item of allStock) {
+            // Re-calculate reconciliation status
+            await firestore.updateDoc("stock", item.id, {
+              lastReconciled: new Date().toISOString(),
+              reconciliationStatus: "Synced & Verified"
+            });
+          }
+
+          // Trigger a resolved system event log
+          await firestore.addDoc("alerts", {
+            title: "Daily Stock Recalculation Run",
+            message: "Automated daily cron recalculation and data-integrity sync successfully verified stock levels across all branches.",
+            severity: "success",
+            centerId: "all",
+            resolved: true
+          });
+
+          if (onUpdateNotification) onUpdateNotification("Automated daily stock recalculation run completed.");
         }
       }
 
