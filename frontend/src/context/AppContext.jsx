@@ -3,6 +3,8 @@ import auth from "../firebase/auth";
 import firestore from "../firebase/firestore";
 import { startSimulation, stopSimulation } from "../utils/dummySimulator";
 import { generateRedistributionSuggestions, calculateCenterHealthScore } from "../ai/recommendations";
+import { doc, updateDoc } from "firebase/firestore";
+import { IS_MOCKED, dbInstance } from "../firebase/firebase";
 
 const AppContext = createContext();
 
@@ -202,6 +204,45 @@ export const AppProvider = ({ children }) => {
     });
     return unsub;
   }, []);
+
+  // Auto-assign center if user is logged in, has no center assigned, and centers are loaded
+  useEffect(() => {
+    if (currentUser && 
+        currentUser.role !== "Admin" && 
+        currentUser.role !== "District Officer" && 
+        !currentUser.centerId && 
+        centers.length > 0) {
+      
+      const defaultCenterId = centers[0].id;
+      
+      const updateProfile = async () => {
+        try {
+          if (!IS_MOCKED) {
+            const userDocRef = doc(dbInstance, "users", currentUser.uid);
+            await updateDoc(userDocRef, { centerId: defaultCenterId });
+          } else {
+            // Mock mode local storage update
+            const localUsers = JSON.parse(localStorage.getItem("healthsync_db_users") || "{}");
+            const emailKey = Object.keys(localUsers).find(k => localUsers[k].uid === currentUser.uid);
+            if (emailKey) {
+              localUsers[emailKey].centerId = defaultCenterId;
+              localStorage.setItem("healthsync_db_users", JSON.stringify(localUsers));
+            }
+          }
+          
+          // Update local state and session
+          const updatedUser = { ...currentUser, centerId: defaultCenterId };
+          setCurrentUser(updatedUser);
+          localStorage.setItem("healthsync_auth_user", JSON.stringify(updatedUser));
+          console.log(`[Auto-Assign Center] Assigned ${currentUser.name} to center ${defaultCenterId}`);
+        } catch (e) {
+          console.error("Auto-assign center failed:", e);
+        }
+      };
+      
+      updateProfile();
+    }
+  }, [currentUser, centers]);
 
   // Firestore DB Snapshot Listeners
   useEffect(() => {

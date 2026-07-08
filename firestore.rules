@@ -5,27 +5,99 @@ service cloud.firestore {
     // Staff/Doctors/Pharmacists/Lab Techs: Read and write their own center's data
     // Patients: No direct access
 
+    function getUserRole(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role;
+    }
+    
+    function getUserCenterId(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.centerId;
+    }
+    
+    function hasUserData(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId));
+    }
+
+    function isAdminUser(userId) {
+      return request.auth != null && 
+        (request.auth.token.role == 'Admin' || 
+         (hasUserData(userId) && getUserRole(userId) == 'Admin'));
+    }
+    
+    function isDistrictOfficerUser(userId) {
+      return request.auth != null && 
+        (request.auth.token.role == 'District Officer' || 
+         (hasUserData(userId) && getUserRole(userId) == 'District Officer'));
+    }
+    
+    function isStaffMemberUser(userId, centerId) {
+      return request.auth != null && 
+        (
+          ((request.auth.token.role == 'Staff' || 
+            request.auth.token.role == 'PHC Worker' ||
+            request.auth.token.role == 'Doctor' ||
+            request.auth.token.role == 'Lab Technician' ||
+            request.auth.token.role == 'Pharmacist') && 
+           request.auth.token.centerId == centerId) 
+          || 
+          (hasUserData(userId) && 
+           (getUserRole(userId) == 'Staff' || 
+            getUserRole(userId) == 'PHC Worker' ||
+            getUserRole(userId) == 'Doctor' ||
+            getUserRole(userId) == 'Lab Technician' ||
+            getUserRole(userId) == 'Pharmacist') && 
+           getUserCenterId(userId) == centerId)
+        );
+    }
+
     function isAdmin() {
-      return request.auth != null && request.auth.token.role == 'Admin';
+      return isAdminUser(request.auth.uid);
     }
     
     function isDistrictOfficer() {
-      return request.auth != null && request.auth.token.role == 'District Officer';
+      return isDistrictOfficerUser(request.auth.uid);
     }
     
     function isStaffMember(centerId) {
-      return request.auth != null && 
-        (request.auth.token.role == 'Staff' || 
-         request.auth.token.role == 'PHC Worker' ||
-         request.auth.token.role == 'Doctor' ||
-         request.auth.token.role == 'Lab Technician' ||
-         request.auth.token.role == 'Pharmacist') && 
-        request.auth.token.centerId == centerId;
+      return isStaffMemberUser(request.auth.uid, centerId);
     }
 
     match /users/{userId} {
       allow read: if request.auth != null;
       allow write: if isAdmin() || (request.auth != null && request.auth.uid == userId);
+
+      // Sandboxed sub-collections nested under the user document
+      match /centers/{centerId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if request.auth != null && request.auth.uid == userId && (isAdminUser(userId) || isDistrictOfficerUser(userId));
+      }
+      
+      match /stock/{stockId} {
+        allow read: if request.auth != null && request.auth.uid == userId && (isAdminUser(userId) || isDistrictOfficerUser(userId) || isStaffMemberUser(userId, resource.data.centerId));
+        allow write: if request.auth != null && request.auth.uid == userId && (isAdminUser(userId) || isDistrictOfficerUser(userId) || isStaffMemberUser(userId, request.resource.data.centerId));
+      }
+      
+      match /patients/{patientId} {
+        allow read: if request.auth != null && request.auth.uid == userId && (isAdminUser(userId) || isDistrictOfficerUser(userId) || isStaffMemberUser(userId, resource.data.centerId));
+        allow write: if request.auth != null && request.auth.uid == userId && (isAdminUser(userId) || isDistrictOfficerUser(userId) || isStaffMemberUser(userId, request.resource.data.centerId));
+      }
+      
+      match /attendance/{attendanceId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if request.auth != null && request.auth.uid == userId && (isAdminUser(userId) || isDistrictOfficerUser(userId) || isStaffMemberUser(userId, request.resource.data.centerId));
+      }
+      
+      match /alerts/{alertId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if request.auth != null && request.auth.uid == userId && (isAdminUser(userId) || isDistrictOfficerUser(userId) || isStaffMemberUser(userId, request.resource.data.centerId));
+      }
+      
+      match /stock_transactions/{txId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      match /consumption_log/{logId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
     
     match /centers/{centerId} {
@@ -51,6 +123,14 @@ service cloud.firestore {
     match /alerts/{alertId} {
       allow read: if request.auth != null;
       allow write: if isAdmin() || isDistrictOfficer() || (request.auth != null && isStaffMember(request.resource.data.centerId));
+    }
+
+    match /stock_transactions/{txId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    match /consumption_log/{logId} {
+      allow read, write: if request.auth != null;
     }
   }
 }

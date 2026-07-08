@@ -10,23 +10,8 @@ export const Signup = ({ onToggle }) => {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("");
   const [district, setDistrict] = useState("");
-  const [centerId, setCenterId] = useState("");
-  const [centersList, setCentersList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
-
-  // Fetch centers list dynamically on component mount
-  useEffect(() => {
-    const loadCenters = async () => {
-      try {
-        const data = await firestore.getDocs("centers");
-        setCentersList(data);
-      } catch (err) {
-        console.error("Failed to load centers for signup dropdown", err);
-      }
-    };
-    loadCenters();
-  }, []);
 
   const handleSignup = async (e) => {
     e.preventDefault();
@@ -44,10 +29,6 @@ export const Signup = ({ onToggle }) => {
     
     // Admins and District Officers scope district-wide ("all")
     const isDistrictScope = role === "Admin" || role === "District Officer";
-    if (!isDistrictScope && !centerId) {
-      setErrorMsg("Please select your Assigned Center.");
-      return;
-    }
 
     setLoading(true);
     try {
@@ -55,7 +36,7 @@ export const Signup = ({ onToggle }) => {
         name: name.trim(),
         role,
         district: district.trim(),
-        centerId: isDistrictScope ? "all" : centerId
+        centerId: isDistrictScope ? "all" : ""
       });
     } catch (err) {
       setErrorMsg(err.message);
@@ -166,57 +147,28 @@ export const Signup = ({ onToggle }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">
-                  Professional Role
-                </label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
-                    <Briefcase className="w-4 h-4" />
-                  </span>
-                  <select
-                    value={role}
-                    required
-                    onChange={(e) => setRole(e.target.value)}
-                    className="w-full text-xs border border-slate-200 rounded-xl pl-10 pr-4 py-2 bg-slate-50 focus:outline-none focus:border-teal-500 font-bold text-slate-700"
-                  >
-                    <option value="">-- Choose Role --</option>
-                    <option value="Admin">Admin</option>
-                    <option value="District Officer">District Officer</option>
-                    <option value="Staff">Staff</option>
-                    <option value="Doctor">Doctor</option>
-                    <option value="Pharmacist">Pharmacist</option>
-                    <option value="Lab Technician">Lab Technician</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">
-                  Assigned Center
-                </label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
-                    <MapPin className="w-4 h-4" />
-                  </span>
-                  <select
-                    value={centerId}
-                    disabled={role === "Admin" || role === "District Officer"}
-                    onChange={(e) => setCenterId(e.target.value)}
-                    className="w-full text-xs border border-slate-200 rounded-xl pl-10 pr-4 py-2 bg-slate-50 focus:outline-none focus:border-teal-500 font-bold text-slate-700 disabled:opacity-60"
-                  >
-                    <option value="">
-                      {role === "Admin" || role === "District Officer" 
-                        ? "-- District Wide (All) --" 
-                        : "-- Choose Center --"
-                      }
-                    </option>
-                    {centersList.map(c => (
-                      <option key={c.id} value={c.id}>{c.centerName}</option>
-                    ))}
-                  </select>
-                </div>
+            <div>
+              <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">
+                Professional Role
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+                  <Briefcase className="w-4 h-4" />
+                </span>
+                <select
+                  value={role}
+                  required
+                  onChange={(e) => setRole(e.target.value)}
+                  className="w-full text-xs border border-slate-200 rounded-xl pl-10 pr-4 py-2 bg-slate-50 focus:outline-none focus:border-teal-500 font-bold text-slate-700"
+                >
+                  <option value="">-- Choose Role --</option>
+                  <option value="Admin">Admin</option>
+                  <option value="District Officer">District Officer</option>
+                  <option value="Staff">Staff</option>
+                  <option value="Doctor">Doctor</option>
+                  <option value="Pharmacist">Pharmacist</option>
+                  <option value="Lab Technician">Lab Technician</option>
+                </select>
               </div>
             </div>
 
